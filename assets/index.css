@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-fa: 'Vazirmatn', 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+  }
+
+  [dir="rtl"] {
+    font-family: var(--font-fa);
+  }
+
+  /* Keep financial numbers and ticker symbols readable and left-to-right oriented even in RTL */
+  .font-mono, .numeral, .ticker-tag {
+    font-family: var(--font-mono);
+    direction: ltr !important;
+    unicode-bidi: isolate;
+  }
+}
+
+/* Light theme overrides */
+html.light-theme {
+  color-scheme: light;
+}
+
+html.light-theme body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+html.light-theme .bg-slate-950,
+html.light-theme .bg-slate-950\/60,
+html.light-theme .bg-slate-950\/80,
+html.light-theme .bg-slate-950\/40,
+html.light-theme .bg-slate-950\/70,
+html.light-theme .bg-slate-950\/50 {
+  background-color: #f1f5f9;
+}
+
+html.light-theme .bg-slate-900,
+html.light-theme .bg-slate-900\/60,
+html.light-theme .bg-slate-900\/80,
+html.light-theme .bg-slate-900\/90 {
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+html.light-theme .border-slate-800,
+html.light-theme .border-slate-800\/80,
+html.light-theme .border-slate-800\/60,
+html.light-theme .border-slate-700,
+html.light-theme .border-slate-700\/80 {
+  border-color: #e2e8f0;
+}
+
+html.light-theme .text-slate-100,
+html.light-theme .text-slate-200 {
+  color: #0f172a;
+}
+
+html.light-theme .text-slate-300 {
+  color: #334155;
+}
+
+html.light-theme .text-slate-400 {
+  color: #64748b;
+}
+
+html.light-theme .text-slate-500 {
+  color: #94a3b8;
+}
+
+html.light-theme input,
+html.light-theme select,
+html.light-theme textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Custom slick dark/light scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
