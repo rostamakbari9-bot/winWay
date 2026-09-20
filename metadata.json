@@ -1,0 +1,6 @@
+{
+  "name": "WIN WAY - Trading Journal",
+  "description": "Professional web-based trading journal for serious traders with deep analytics, performance tracking, mistake analysis, and psychological insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
