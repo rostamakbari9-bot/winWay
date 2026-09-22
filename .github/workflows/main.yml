@@ -31,6 +31,8 @@ jobs:
         run: npm install
 
       - name: Build Vite project
+        env:
+          VITE_BASE_PATH: /winWay/
         run: npm run build
 
       - name: Upload Pages artifact
