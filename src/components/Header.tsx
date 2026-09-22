@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActiveTab, Language, Theme } from '../types';
+import { ActiveTab, Language, Theme, UserProfile } from '../types';
 import { translations, formatCurrency } from '../translations';
 import { PerformanceStats } from '../utils/calculations';
 import { 
@@ -11,7 +11,10 @@ import {
   Flame, 
   TrendingUp, 
   TrendingDown,
-  ShieldCheck
+  ShieldCheck,
+  User as UserIcon,
+  Crown,
+  LogIn
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -26,6 +29,10 @@ interface HeaderProps {
   theme: Theme;
   onToggleTheme: () => void;
   onOpenMobileMenu: () => void;
+  userProfile: UserProfile | null;
+  onOpenAuth: () => void;
+  onOpenProfile: () => void;
+  onOpenPricing: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -38,6 +45,10 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
   onOpenMobileMenu,
+  userProfile,
+  onOpenAuth,
+  onOpenProfile,
+  onOpenPricing,
 }) => {
   const t = translations[lang];
 
@@ -118,8 +129,46 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right Controls: Language, Theme, New Trade Button */}
-        <div className="flex items-center gap-2.5">
+        {/* Right Controls: Language, Theme, Auth/Profile, New Trade Button */}
+        <div className="flex items-center gap-2">
+          {/* Pricing Button */}
+          <button
+            onClick={onOpenPricing}
+            className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+              userProfile?.plan === 'premium'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
+                : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+            }`}
+            title={t.pricing}
+          >
+            <Crown className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">{userProfile?.plan === 'premium' ? t.premiumPlan : t.pricing}</span>
+          </button>
+
+          {/* User Auth or Profile Button */}
+          {userProfile ? (
+            <button
+              onClick={onOpenProfile}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-medium transition-colors"
+              title={t.profile}
+            >
+              <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-[10px]">
+                {userProfile.displayName ? userProfile.displayName.charAt(0).toUpperCase() : userProfile.email.charAt(0).toUpperCase()}
+              </div>
+              <span className="hidden sm:inline font-medium max-w-[90px] truncate">
+                {userProfile.displayName || userProfile.email.split('@')[0]}
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-semibold transition-colors"
+            >
+              <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{t.login}</span>
+            </button>
+          )}
+
           {/* Language Switcher */}
           <button
             onClick={onToggleLang}

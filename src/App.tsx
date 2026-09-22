@@ -6,7 +6,8 @@ import {
   TradingRule, 
   ActiveTab, 
   Language, 
-  Theme 
+  Theme,
+  UserProfile 
 } from './types';
 import { 
   INITIAL_TRADES, 
@@ -28,10 +29,54 @@ import { MissedTradesView } from './components/MissedTradesView';
 import { PlaybookRulesView } from './components/PlaybookRulesView';
 import { TradeModal } from './components/TradeModal';
 import { TradeDetailModal } from './components/TradeDetailModal';
+import { AuthModal, AuthModalMode } from './components/AuthModal';
+import { ProfileModal } from './components/ProfileModal';
+import { PricingModal } from './components/PricingModal';
+import { translations } from './translations';
+
+// Firebase integration
+import { useAuth } from './hooks/useAuth';
+import { useTrades } from './hooks/useTrades';
+import { useMissedTrades } from './hooks/useMissedTrades';
+import { useDailyNotes } from './hooks/useDailyNotes';
+import { useTradingRules } from './hooks/useTradingRules';
+import { migrateLocalDataToFirestore } from './firebase/firestoreService';
+import { isFirebaseConfigured } from './firebase/config';
+import { Cloud, CloudUpload, X, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 
 export default function App() {
-  // LocalStorage persistence for trades
-  const [trades, setTrades] = useState<Trade[]>(() => {
+  // Auth state from Firebase
+  const { user, profile: userProfile, loading: authLoading } = useAuth();
+  const userId = user?.uid;
+
+  // Firebase Real-Time Data Hooks
+  const {
+    trades: cloudTrades,
+    loading: cloudTradesLoading,
+    addOrUpdateTrade: saveCloudTrade,
+    removeTrade: deleteCloudTrade,
+  } = useTrades(userId);
+
+  const {
+    missedTrades: cloudMissedTrades,
+    addOrUpdateMissedTrade: saveCloudMissedTrade,
+    removeMissedTrade: deleteCloudMissedTrade,
+  } = useMissedTrades(userId);
+
+  const {
+    dailyNotes: cloudDailyNotes,
+    addOrUpdateDailyNote: saveCloudDailyNote,
+  } = useDailyNotes(userId);
+
+  const {
+    rules: cloudRules,
+    addOrUpdateRule: saveCloudRule,
+    removeRule: deleteCloudRule,
+    toggleRule: toggleCloudRule,
+  } = useTradingRules(userId);
+
+  // LocalStorage Fallback State (when user is not logged in)
+  const [localTrades, setLocalTrades] = useState<Trade[]>(() => {
     try {
       const saved = localStorage.getItem('winway_trades');
       return saved ? JSON.parse(saved) : INITIAL_TRADES;
@@ -40,7 +85,7 @@ export default function App() {
     }
   });
 
-  const [missedTrades, setMissedTrades] = useState<MissedTrade[]>(() => {
+  const [localMissedTrades, setLocalMissedTrades] = useState<MissedTrade[]>(() => {
     try {
       const saved = localStorage.getItem('winway_missed_trades');
       return saved ? JSON.parse(saved) : INITIAL_MISSED_TRADES;
@@ -49,7 +94,7 @@ export default function App() {
     }
   });
 
-  const [dailyNotes, setDailyNotes] = useState<DailyNote[]>(() => {
+  const [localDailyNotes, setLocalDailyNotes] = useState<DailyNote[]>(() => {
     try {
       const saved = localStorage.getItem('winway_daily_notes');
       return saved ? JSON.parse(saved) : INITIAL_DAILY_NOTES;
@@ -58,7 +103,7 @@ export default function App() {
     }
   });
 
-  const [rules, setRules] = useState<TradingRule[]>(() => {
+  const [localRules, setLocalRules] = useState<TradingRule[]>(() => {
     try {
       const saved = localStorage.getItem('winway_rules');
       return saved ? JSON.parse(saved) : INITIAL_RULES;
@@ -67,7 +112,24 @@ export default function App() {
     }
   });
 
-  // App settings state
+  // Effective state: If user is authenticated, use cloud data; otherwise, use local data
+  const trades = useMemo(() => {
+    return userId ? cloudTrades : localTrades;
+  }, [userId, cloudTrades, localTrades]);
+
+  const missedTrades = useMemo(() => {
+    return userId ? cloudMissedTrades : localMissedTrades;
+  }, [userId, cloudMissedTrades, localMissedTrades]);
+
+  const dailyNotes = useMemo(() => {
+    return userId ? cloudDailyNotes : localDailyNotes;
+  }, [userId, cloudDailyNotes, localDailyNotes]);
+
+  const rules = useMemo(() => {
+    return userId ? cloudRules : localRules;
+  }, [userId, cloudRules, localRules]);
+
+  // App UI state
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [lang, setLang] = useState<Language>('en');
   const [theme, setTheme] = useState<Theme>('dark');
@@ -79,38 +141,78 @@ export default function App() {
   const [selectedTradeForDetail, setSelectedTradeForDetail] = useState<Trade | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  // Save to localStorage when state changes
+  // Auth, Profile & Pricing Modals
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<AuthModalMode>('login');
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState<boolean>(false);
+
+  // Migration Banner State
+  const [showMigrationPrompt, setShowMigrationPrompt] = useState<boolean>(false);
+  const [migrating, setMigrating] = useState<boolean>(false);
+  const [migrationSuccess, setMigrationSuccess] = useState<boolean>(false);
+
+  const t = translations[lang];
+
+  // Detect if there are local trades that can be migrated to cloud
   useEffect(() => {
-    try {
-      localStorage.setItem('winway_trades', JSON.stringify(trades));
-    } catch (e) {
-      console.error(e);
+    if (userId && !cloudTradesLoading) {
+      const savedLocal = localStorage.getItem('winway_trades');
+      if (savedLocal) {
+        try {
+          const parsed = JSON.parse(savedLocal);
+          if (Array.isArray(parsed) && parsed.length > 0 && cloudTrades.length === 0) {
+            setShowMigrationPrompt(true);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } else {
+      setShowMigrationPrompt(false);
     }
-  }, [trades]);
+  }, [userId, cloudTradesLoading, cloudTrades.length]);
+
+  // Save to localStorage when unauthenticated
+  useEffect(() => {
+    if (!userId) {
+      try {
+        localStorage.setItem('winway_trades', JSON.stringify(localTrades));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [localTrades, userId]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('winway_missed_trades', JSON.stringify(missedTrades));
-    } catch (e) {
-      console.error(e);
+    if (!userId) {
+      try {
+        localStorage.setItem('winway_missed_trades', JSON.stringify(localMissedTrades));
+      } catch (e) {
+        console.error(e);
+      }
     }
-  }, [missedTrades]);
+  }, [localMissedTrades, userId]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('winway_daily_notes', JSON.stringify(dailyNotes));
-    } catch (e) {
-      console.error(e);
+    if (!userId) {
+      try {
+        localStorage.setItem('winway_daily_notes', JSON.stringify(localDailyNotes));
+      } catch (e) {
+        console.error(e);
+      }
     }
-  }, [dailyNotes]);
+  }, [localDailyNotes, userId]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('winway_rules', JSON.stringify(rules));
-    } catch (e) {
-      console.error(e);
+    if (!userId) {
+      try {
+        localStorage.setItem('winway_rules', JSON.stringify(localRules));
+      } catch (e) {
+        console.error(e);
+      }
     }
-  }, [rules]);
+  }, [localRules, userId]);
 
   // Handle document direction and theme classes
   useEffect(() => {
@@ -158,23 +260,39 @@ export default function App() {
   }, [trades]);
 
   // Trade management callbacks
-  const handleSaveTrade = useCallback((trade: Trade) => {
-    setTrades(prev => {
-      const exists = prev.some(t => t.id === trade.id);
-      if (exists) {
-        return prev.map(t => (t.id === trade.id ? trade : t));
-      } else {
-        return [trade, ...prev];
+  const handleSaveTrade = useCallback(async (trade: Trade) => {
+    if (userId) {
+      try {
+        await saveCloudTrade(trade);
+      } catch (err) {
+        console.error('Failed to save trade to cloud:', err);
       }
-    });
-  }, []);
+    } else {
+      setLocalTrades(prev => {
+        const exists = prev.some(t => t.id === trade.id);
+        if (exists) {
+          return prev.map(t => (t.id === trade.id ? trade : t));
+        } else {
+          return [trade, ...prev];
+        }
+      });
+    }
+  }, [userId, saveCloudTrade]);
 
-  const handleDeleteTrade = useCallback((tradeId: string) => {
-    setTrades(prev => prev.filter(t => t.id !== tradeId));
+  const handleDeleteTrade = useCallback(async (tradeId: string) => {
+    if (userId) {
+      try {
+        await deleteCloudTrade(tradeId);
+      } catch (err) {
+        console.error('Failed to delete trade from cloud:', err);
+      }
+    } else {
+      setLocalTrades(prev => prev.filter(t => t.id !== tradeId));
+    }
     if (selectedTradeForDetail?.id === tradeId) {
       setSelectedTradeForDetail(null);
     }
-  }, [selectedTradeForDetail]);
+  }, [userId, deleteCloudTrade, selectedTradeForDetail]);
 
   const handleOpenEdit = useCallback((trade: Trade) => {
     setTradeToEdit(trade);
@@ -186,53 +304,127 @@ export default function App() {
   }, []);
 
   // Missed Trade callbacks
-  const handleAddMissedTrade = useCallback((mt: MissedTrade) => {
-    setMissedTrades(prev => [mt, ...prev]);
-  }, []);
+  const handleAddMissedTrade = useCallback(async (mt: MissedTrade) => {
+    if (userId) {
+      try {
+        await saveCloudMissedTrade(mt);
+      } catch (err) {
+        console.error('Failed to save missed trade to cloud:', err);
+      }
+    } else {
+      setLocalMissedTrades(prev => [mt, ...prev]);
+    }
+  }, [userId, saveCloudMissedTrade]);
 
-  const handleDeleteMissedTrade = useCallback((id: string) => {
-    setMissedTrades(prev => prev.filter(m => m.id !== id));
-  }, []);
+  const handleDeleteMissedTrade = useCallback(async (id: string) => {
+    if (userId) {
+      try {
+        await deleteCloudMissedTrade(id);
+      } catch (err) {
+        console.error('Failed to delete missed trade from cloud:', err);
+      }
+    } else {
+      setLocalMissedTrades(prev => prev.filter(m => m.id !== id));
+    }
+  }, [userId, deleteCloudMissedTrade]);
 
   // Daily note callback
-  const handleSaveDailyNote = useCallback((note: DailyNote) => {
-    setDailyNotes(prev => {
-      const idx = prev.findIndex(n => n.date === note.date);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = note;
-        return updated;
+  const handleSaveDailyNote = useCallback(async (note: DailyNote) => {
+    if (userId) {
+      try {
+        await saveCloudDailyNote(note);
+      } catch (err) {
+        console.error('Failed to save daily note to cloud:', err);
       }
-      return [note, ...prev];
-    });
-  }, []);
+    } else {
+      setLocalDailyNotes(prev => {
+        const idx = prev.findIndex(n => n.date === note.date);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = note;
+          return updated;
+        }
+        return [note, ...prev];
+      });
+    }
+  }, [userId, saveCloudDailyNote]);
 
   // Rules callbacks
-  const handleToggleRule = useCallback((id: string) => {
-    setRules(prev => prev.map(r => r.id === id ? { ...r, isActive: !r.isActive } : r));
-  }, []);
+  const handleToggleRule = useCallback(async (id: string) => {
+    if (userId) {
+      try {
+        await toggleCloudRule(id);
+      } catch (err) {
+        console.error('Failed to toggle rule in cloud:', err);
+      }
+    } else {
+      setLocalRules(prev => prev.map(r => r.id === id ? { ...r, isActive: !r.isActive } : r));
+    }
+  }, [userId, toggleCloudRule]);
 
-  const handleAddRule = useCallback((rule: TradingRule) => {
-    setRules(prev => [...prev, rule]);
-  }, []);
+  const handleAddRule = useCallback(async (rule: TradingRule) => {
+    if (userId) {
+      try {
+        await saveCloudRule(rule);
+      } catch (err) {
+        console.error('Failed to add rule in cloud:', err);
+      }
+    } else {
+      setLocalRules(prev => [...prev, rule]);
+    }
+  }, [userId, saveCloudRule]);
 
-  const handleDeleteRule = useCallback((id: string) => {
-    setRules(prev => prev.filter(r => r.id !== id));
-  }, []);
+  const handleDeleteRule = useCallback(async (id: string) => {
+    if (userId) {
+      try {
+        await deleteCloudRule(id);
+      } catch (err) {
+        console.error('Failed to delete rule in cloud:', err);
+      }
+    } else {
+      setLocalRules(prev => prev.filter(r => r.id !== id));
+    }
+  }, [userId, deleteCloudRule]);
+
+  // Migration execution
+  const handleExecuteMigration = async () => {
+    if (!userId) return;
+    try {
+      setMigrating(true);
+      await migrateLocalDataToFirestore(
+        userId,
+        localTrades,
+        localMissedTrades,
+        localDailyNotes,
+        localRules
+      );
+      setMigrationSuccess(true);
+      setTimeout(() => {
+        setShowMigrationPrompt(false);
+        setMigrationSuccess(false);
+      }, 3000);
+    } catch (err) {
+      console.error('Migration failed:', err);
+    } finally {
+      setMigrating(false);
+    }
+  };
 
   // Reset Demo Data
   const handleResetDemo = useCallback(() => {
     if (confirm('Reset journal data back to default demo records?')) {
-      setTrades(INITIAL_TRADES);
-      setMissedTrades(INITIAL_MISSED_TRADES);
-      setDailyNotes(INITIAL_DAILY_NOTES);
-      setRules(INITIAL_RULES);
-      localStorage.removeItem('winway_trades');
-      localStorage.removeItem('winway_missed_trades');
-      localStorage.removeItem('winway_daily_notes');
-      localStorage.removeItem('winway_rules');
+      if (!userId) {
+        setLocalTrades(INITIAL_TRADES);
+        setLocalMissedTrades(INITIAL_MISSED_TRADES);
+        setLocalDailyNotes(INITIAL_DAILY_NOTES);
+        setLocalRules(INITIAL_RULES);
+        localStorage.removeItem('winway_trades');
+        localStorage.removeItem('winway_missed_trades');
+        localStorage.removeItem('winway_daily_notes');
+        localStorage.removeItem('winway_rules');
+      }
     }
-  }, []);
+  }, [userId]);
 
   // Export CSV
   const handleExportCSV = useCallback(() => {
@@ -295,6 +487,43 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      
+      {/* Migration Notification Banner */}
+      {showMigrationPrompt && (
+        <div 
+          className="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 border-b border-emerald-500/30 px-4 py-2.5 text-xs text-slate-200"
+          dir={lang === 'fa' ? 'rtl' : 'ltr'}
+        >
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CloudUpload className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                {migrationSuccess ? t.migrationSuccess : t.migrationPrompt}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!migrationSuccess && (
+                <button
+                  onClick={handleExecuteMigration}
+                  disabled={migrating}
+                  className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[11px] shadow flex items-center gap-1.5 transition-all"
+                >
+                  {migrating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
+                  <span>{migrating ? t.migratingData : t.importLocalData}</span>
+                </button>
+              )}
+              <button
+                onClick={() => setShowMigrationPrompt(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                title={t.dismiss}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Header */}
       <Header
         activeTab={activeTab}
@@ -311,6 +540,13 @@ export default function App() {
         theme={theme}
         onToggleTheme={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
         onOpenMobileMenu={() => setMobileMenuOpen(true)}
+        userProfile={userProfile}
+        onOpenAuth={() => {
+          setAuthModalMode('login');
+          setIsAuthModalOpen(true);
+        }}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenPricing={() => setIsPricingModalOpen(true)}
       />
 
       {/* Main App Layout */}
@@ -325,6 +561,13 @@ export default function App() {
           tradesCount={trades.length}
           onExportCSV={handleExportCSV}
           onResetDemo={handleResetDemo}
+          userProfile={userProfile}
+          onOpenAuth={() => {
+            setAuthModalMode('login');
+            setIsAuthModalOpen(true);
+          }}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+          onOpenPricing={() => setIsPricingModalOpen(true)}
         />
 
         {/* Content View Container */}
@@ -379,6 +622,7 @@ export default function App() {
               onAddMissedTrade={handleAddMissedTrade}
               onDeleteMissedTrade={handleDeleteMissedTrade}
               lang={lang}
+              userId={userId}
             />
           )}
 
@@ -406,6 +650,7 @@ export default function App() {
         onSave={handleSaveTrade}
         tradeToEdit={tradeToEdit}
         lang={lang}
+        userId={userId}
       />
 
       {/* Trade In-Depth Detail Inspector Modal */}
@@ -417,7 +662,35 @@ export default function App() {
         onDelete={handleDeleteTrade}
         lang={lang}
       />
+
+      {/* Firebase Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        lang={lang}
+        initialMode={authModalMode}
+      />
+
+      {/* User Profile & Account Settings Modal */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        lang={lang}
+        userProfile={userProfile}
+        onOpenPricing={() => setIsPricingModalOpen(true)}
+      />
+
+      {/* Pricing & Subscription Modal */}
+      <PricingModal
+        isOpen={isPricingModalOpen}
+        onClose={() => setIsPricingModalOpen(false)}
+        lang={lang}
+        userProfile={userProfile}
+        onRequireAuth={() => {
+          setAuthModalMode('signup');
+          setIsAuthModalOpen(true);
+        }}
+      />
     </div>
   );
 }
-

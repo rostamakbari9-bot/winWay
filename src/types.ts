@@ -56,6 +56,7 @@ export interface Trade {
   whatWentWell?: string;
   whatToImprove?: string;
   chartUrl?: string;
+  chartStoragePath?: string;
   account?: string;
 }
 
@@ -75,6 +76,7 @@ export interface MissedTrade {
   reason: 'Fear of Loss' | 'Hesitation' | 'Distracted' | 'Away from Desk' | 'Spread/Limit Missed' | 'Analysis Paralysis';
   notes: string;
   chartUrl?: string;
+  chartStoragePath?: string;
 }
 
 export interface DailyNote {
@@ -96,7 +98,20 @@ export interface TradingRule {
   isActive: boolean;
 }
 
-export type ActiveTab = 'dashboard' | 'journal' | 'analytics' | 'missed' | 'playbook' | 'settings';
+export type SubscriptionPlan = 'free' | 'premium';
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  plan: SubscriptionPlan;
+  preferredCurrency?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type ActiveTab = 'dashboard' | 'journal' | 'analytics' | 'missed' | 'playbook' | 'settings' | 'pricing' | 'profile';
 
 export type Language = 'en' | 'fa';
 

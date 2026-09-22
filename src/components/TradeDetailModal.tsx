@@ -288,7 +288,8 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 <img
                   src={trade.chartUrl}
                   alt={`${trade.symbol} Chart`}
-                  className="w-full h-auto object-cover"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-auto object-cover cursor-pointer hover:opacity-95 transition-opacity"
                   onError={e => {
                     // fallback if image fails
                     (e.target as HTMLElement).style.display = 'none';

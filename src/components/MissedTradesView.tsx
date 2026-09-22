@@ -11,14 +11,17 @@ import {
   Check, 
   X,
   BrainCircuit,
-  DollarSign
+  DollarSign,
+  Image as ImageIcon
 } from 'lucide-react';
+import { ChartImageUpload } from './ChartImageUpload';
 
 interface MissedTradesViewProps {
   missedTrades: MissedTrade[];
   onAddMissedTrade: (trade: MissedTrade) => void;
   onDeleteMissedTrade: (id: string) => void;
   lang: Language;
+  userId?: string;
 }
 
 export const MissedTradesView: React.FC<MissedTradesViewProps> = ({
@@ -26,10 +29,12 @@ export const MissedTradesView: React.FC<MissedTradesViewProps> = ({
   onAddMissedTrade,
   onDeleteMissedTrade,
   lang,
+  userId,
 }) => {
   const t = translations[lang];
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeMissedId, setActiveMissedId] = useState<string>(`mt-${Date.now()}`);
 
   // Form State
   const [symbol, setSymbol] = useState('');
@@ -46,6 +51,8 @@ export const MissedTradesView: React.FC<MissedTradesViewProps> = ({
   const [reason, setReason] = useState<MissedTrade['reason']>('Hesitation');
   const [notes, setNotes] = useState('');
   const [chartUrl, setChartUrl] = useState('');
+  const [chartStoragePath, setChartStoragePath] = useState<string | undefined>(undefined);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   // Aggregates
   const totalMissedR = missedTrades.reduce((acc, m) => acc + (m.potentialR || 0), 0);
@@ -61,7 +68,7 @@ export const MissedTradesView: React.FC<MissedTradesViewProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newMissed: MissedTrade = {
-      id: `mt-${Date.now()}`,
+      id: activeMissedId,
       symbol: symbol.toUpperCase().trim() || 'UNTITLED',
       assetClass,
       direction,
@@ -75,15 +82,18 @@ export const MissedTradesView: React.FC<MissedTradesViewProps> = ({
       potentialPnL: Number(potentialPnL),
       reason,
       notes,
-      chartUrl: chartUrl.trim() || undefined
+      chartUrl: chartUrl.trim() || undefined,
+      chartStoragePath,
     };
 
     onAddMissedTrade(newMissed);
     setIsModalOpen(false);
     // Reset
+    setActiveMissedId(`mt-${Date.now()}`);
     setSymbol('');
     setNotes('');
     setChartUrl('');
+    setChartStoragePath(undefined);
   };
 
   return (
@@ -187,6 +197,19 @@ export const MissedTradesView: React.FC<MissedTradesViewProps> = ({
                     <p className="text-xs text-slate-400 leading-relaxed italic bg-slate-900/60 p-2 rounded-lg">
                       "{mt.notes}"
                     </p>
+                  )}
+
+                  {mt.chartUrl && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setViewingImage(mt.chartUrl || null)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-purple-500/50 text-[11px] text-purple-300 transition-colors"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-purple-400" />
+                        <span>{lang === 'fa' ? 'مشاهده تصویر چارت' : 'View Chart Analysis'}</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -315,6 +338,25 @@ export const MissedTradesView: React.FC<MissedTradesViewProps> = ({
                 />
               </div>
 
+              {/* Chart Upload */}
+              <div className="pt-2 border-t border-slate-800">
+                <ChartImageUpload
+                  userId={userId}
+                  tradeId={activeMissedId}
+                  currentChartUrl={chartUrl}
+                  onChartUploaded={(url, storagePath) => {
+                    setChartUrl(url);
+                    if (storagePath) setChartStoragePath(storagePath);
+                  }}
+                  onChartRemoved={() => {
+                    setChartUrl('');
+                    setChartStoragePath(undefined);
+                  }}
+                  lang={lang}
+                  isMissedTrade={true}
+                />
+              </div>
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
@@ -331,6 +373,29 @@ export const MissedTradesView: React.FC<MissedTradesViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Chart Lightbox */}
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150"
+          onClick={() => setViewingImage(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden p-2 shadow-2xl">
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-slate-950/80 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={viewingImage}
+              alt="Missed trade chart analysis"
+              referrerPolicy="no-referrer"
+              className="w-full h-auto max-h-[85vh] object-contain rounded-xl"
+            />
           </div>
         </div>
       )}

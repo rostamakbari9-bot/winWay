@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { Trade, AssetClass, TradeDirection, TradeStatus, TradingSession, EmotionState } from '../types';
 import { translations, formatCurrency } from '../translations';
 import { X, Check, AlertCircle, TrendingUp, TrendingDown, Image as ImageIcon, Calculator } from 'lucide-react';
+import { ChartImageUpload } from './ChartImageUpload';
 
 interface TradeModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface TradeModalProps {
   onSave: (trade: Trade) => void;
   tradeToEdit?: Trade | null;
   lang: 'en' | 'fa';
+  userId?: string;
 }
 
 const COMMON_SETUPS = [
@@ -52,9 +54,11 @@ export const TradeModal: React.FC<TradeModalProps> = ({
   onClose,
   onSave,
   tradeToEdit,
-  lang
+  lang,
+  userId
 }) => {
   const t = translations[lang];
+  const [activeTradeId, setActiveTradeId] = useState<string>(`tr-${Date.now()}`);
 
   const [symbol, setSymbol] = useState('');
   const [assetClass, setAssetClass] = useState<AssetClass>('forex');
@@ -89,11 +93,13 @@ export const TradeModal: React.FC<TradeModalProps> = ({
   const [whatWentWell, setWhatWentWell] = useState('');
   const [whatToImprove, setWhatToImprove] = useState('');
   const [chartUrl, setChartUrl] = useState('');
+  const [chartStoragePath, setChartStoragePath] = useState<string | undefined>(undefined);
   const [account, setAccount] = useState('Main Account');
 
   // Populate form if editing
   useEffect(() => {
     if (tradeToEdit) {
+      setActiveTradeId(tradeToEdit.id);
       setSymbol(tradeToEdit.symbol);
       setAssetClass(tradeToEdit.assetClass);
       setDirection(tradeToEdit.direction);
@@ -122,9 +128,11 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       setWhatWentWell(tradeToEdit.whatWentWell || '');
       setWhatToImprove(tradeToEdit.whatToImprove || '');
       setChartUrl(tradeToEdit.chartUrl || '');
+      setChartStoragePath(tradeToEdit.chartStoragePath);
       setAccount(tradeToEdit.account || 'Main Account');
     } else {
       // Default clean state
+      setActiveTradeId(`tr-${Date.now()}`);
       setSymbol('XAU/USD');
       setAssetClass('commodities');
       setDirection('LONG');
@@ -145,6 +153,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       setWhatWentWell('');
       setWhatToImprove('');
       setChartUrl('');
+      setChartStoragePath(undefined);
     }
   }, [tradeToEdit, isOpen]);
 
@@ -224,6 +233,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       whatWentWell,
       whatToImprove,
       chartUrl: chartUrl.trim() || undefined,
+      chartStoragePath,
       account
     };
 
@@ -708,19 +718,34 @@ export const TradeModal: React.FC<TradeModalProps> = ({
               </div>
             </div>
 
-            {/* Chart screenshot URL */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
-                <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
-                {t.chartAttachment} (URL)
-              </label>
-              <input
-                type="url"
-                value={chartUrl}
-                onChange={e => setChartUrl(e.target.value)}
-                placeholder="https://... TradingView image URL or screenshot link"
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-100 placeholder-slate-500"
+            {/* Chart screenshot Upload with URL option */}
+            <div className="pt-1">
+              <ChartImageUpload
+                userId={userId}
+                tradeId={activeTradeId}
+                currentChartUrl={chartUrl}
+                onChartUploaded={(url, storagePath) => {
+                  setChartUrl(url);
+                  if (storagePath) setChartStoragePath(storagePath);
+                }}
+                onChartRemoved={() => {
+                  setChartUrl('');
+                  setChartStoragePath(undefined);
+                }}
+                lang={lang}
               />
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+                  {lang === 'fa' ? 'یا پیوند URL مستقیم:' : 'Or direct URL:'}
+                </span>
+                <input
+                  type="url"
+                  value={chartUrl}
+                  onChange={e => setChartUrl(e.target.value)}
+                  placeholder="https://... TradingView image URL"
+                  className="flex-1 bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-[11px] font-mono text-slate-200 placeholder-slate-500"
+                />
+              </div>
             </div>
           </div>
 

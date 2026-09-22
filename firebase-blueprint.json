@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with plan and account details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "plan": { "type": "string", "enum": ["free", "premium"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "plan"]
+    },
+    "Trade": {
+      "title": "Trade",
+      "description": "Logged trade record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "symbol": { "type": "string" },
+        "assetClass": { "type": "string" },
+        "direction": { "type": "string" },
+        "status": { "type": "string" },
+        "entryDate": { "type": "string" },
+        "entryTime": { "type": "string" },
+        "exitDate": { "type": "string" },
+        "exitTime": { "type": "string" },
+        "entryPrice": { "type": "number" },
+        "exitPrice": { "type": "number" },
+        "stopLoss": { "type": "number" },
+        "takeProfit": { "type": "number" },
+        "size": { "type": "number" },
+        "riskAmount": { "type": "number" },
+        "netPnL": { "type": "number" },
+        "rMultiple": { "type": "number" },
+        "returnPercent": { "type": "number" },
+        "fees": { "type": "number" },
+        "setup": { "type": "string" },
+        "session": { "type": "string" },
+        "timeframe": { "type": "string" },
+        "followedPlan": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "chartUrl": { "type": "string" },
+        "chartStoragePath": { "type": "string" },
+        "account": { "type": "string" }
+      },
+      "required": ["id", "symbol", "direction", "status", "entryDate", "entryPrice", "exitPrice", "netPnL"]
+    },
+    "MissedTrade": {
+      "title": "MissedTrade",
+      "description": "Missed trading setup due to psychological factors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "symbol": { "type": "string" },
+        "setup": { "type": "string" },
+        "reason": { "type": "string" },
+        "potentialR": { "type": "number" },
+        "potentialPnL": { "type": "number" },
+        "chartUrl": { "type": "string" },
+        "chartStoragePath": { "type": "string" }
+      },
+      "required": ["id", "date", "symbol", "reason"]
+    },
+    "DailyNote": {
+      "title": "DailyNote",
+      "description": "Daily trading journal review and market conditions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "rating": { "type": "number" },
+        "marketCondition": { "type": "string" },
+        "preMarketNotes": { "type": "string" },
+        "postMarketNotes": { "type": "string" },
+        "followedRules": { "type": "boolean" },
+        "keyLesson": { "type": "string" }
+      },
+      "required": ["id", "date"]
+    },
+    "TradingRule": {
+      "title": "TradingRule",
+      "description": "Playbook and discipline rule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "title", "category"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with plan and timestamps"
+    },
+    "/users/{userId}/trades/{tradeId}": {
+      "schema": "Trade",
+      "description": "Individual user trades"
+    },
+    "/users/{userId}/missedTrades/{missedTradeId}": {
+      "schema": "MissedTrade",
+      "description": "Missed trade opportunities"
+    },
+    "/users/{userId}/dailyNotes/{noteId}": {
+      "schema": "DailyNote",
+      "description": "Daily market preparation and review notes"
+    },
+    "/users/{userId}/playbook/{ruleId}": {
+      "schema": "TradingRule",
+      "description": "Trading rules and checklist items"
+    }
+  }
+}
