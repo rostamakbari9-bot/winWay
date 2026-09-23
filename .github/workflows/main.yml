@@ -29,7 +29,18 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
+        
+       - name: Check Firebase environment
+  env:
+    FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+  run: |
+    if [ -z "$FIREBASE_API_KEY" ]; then
+      echo "❌ VITE_FIREBASE_API_KEY is EMPTY"
+      exit 1
+    else
+      echo "✅ VITE_FIREBASE_API_KEY is available"
+    fi
+    
       - name: Build Vite project
         env:
           VITE_BASE_PATH: /winWay/
